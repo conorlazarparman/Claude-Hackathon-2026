@@ -49,7 +49,7 @@ Rules:
     in_thinking = False
     with client.messages.stream(
         model="claude-sonnet-4-6",
-        max_tokens=512,
+        max_tokens=4096,
         thinking={"type": "enabled", "budget_tokens": 3000},
         messages=[{"role": "user", "content": prompt}],
     ) as stream:
