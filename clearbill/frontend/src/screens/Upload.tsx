@@ -1,17 +1,21 @@
 import { useRef, useState } from "react"
 
 interface UploadProps {
-  onFile: (file: File) => void
+  onFile: (files: File | File[]) => void
+  error?: string | null
 }
 
-export function Upload({ onFile }: UploadProps) {
+export function Upload({ onFile, error }: UploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
-  const handle = (file: File) => {
-    if (file.type.startsWith("image/") || file.type === "application/pdf") {
-      onFile(file)
-    }
+  const handle = (fileList: FileList | null) => {
+    if (!fileList) return
+    const valid = Array.from(fileList).filter(
+      (f) => f.type.startsWith("image/") || f.type === "application/pdf"
+    )
+    if (valid.length === 0) return
+    onFile(valid.length === 1 ? valid[0] : valid)
   }
 
   return (
@@ -31,6 +35,21 @@ export function Upload({ onFile }: UploadProps) {
         Upload a medical bill to check for overcharges
       </div>
 
+      {error && (
+        <div style={{
+          width: "100%",
+          maxWidth: "480px",
+          background: "rgba(220,38,38,0.1)",
+          border: "1px solid rgba(220,38,38,0.4)",
+          borderRadius: "8px",
+          padding: "12px 16px",
+          fontSize: "13px",
+          color: "#ef4444",
+        }}>
+          {error}
+        </div>
+      )}
+
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
@@ -38,8 +57,7 @@ export function Upload({ onFile }: UploadProps) {
         onDrop={(e) => {
           e.preventDefault()
           setDragging(false)
-          const file = e.dataTransfer.files[0]
-          if (file) handle(file)
+          handle(e.dataTransfer.files)
         }}
         style={{
           width: "100%",
@@ -58,7 +76,7 @@ export function Upload({ onFile }: UploadProps) {
           Drop your bill here
         </div>
         <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>
-          JPG, PNG, PDF — photos or scans
+          JPG, PNG, PDF — photos or scans, multiple files supported
         </div>
       </div>
 
@@ -66,11 +84,9 @@ export function Upload({ onFile }: UploadProps) {
         ref={inputRef}
         type="file"
         accept="image/*,application/pdf"
+        multiple
         style={{ display: "none" }}
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) handle(file)
-        }}
+        onChange={(e) => handle(e.target.files)}
       />
 
       <button

@@ -19,12 +19,18 @@ const INITIAL_STEPS: Step[] = [
   { label: "Generating dispute letter", status: "pending" },
 ]
 
+function isBadExtraction(data: any): boolean {
+  if (!data.line_items || data.line_items.length === 0) return true
+  return data.line_items.every((item: any) => !item.billed_amount || item.billed_amount === 0)
+}
+
 function App() {
   const [screen, setScreen] = useState<Screen>("upload")
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS)
   const [thinkingText, setThinkingText] = useState("")
   const [auditData, setAuditData] = useState<any>(null)
   const [sessionId] = useState(() => Math.random().toString(36).slice(2))
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const setStep = (i: number, status: Step["status"]) => {
     setSteps((prev) =>
@@ -32,15 +38,22 @@ function App() {
     )
   }
 
-  const handleFile = async (file: File) => {
+  const handleFile = async (files: File | File[]) => {
+    setUploadError(null)
     setScreen("processing")
     setSteps(INITIAL_STEPS.map((s) => ({ ...s, status: "pending" })))
 
     try {
       // Step 1: Extract
       setStep(0, "active")
-      const extracted = await extractBill(file)
+      const extracted = await extractBill(Array.isArray(files) ? files : [files])
       setStep(0, "done")
+
+      if (isBadExtraction(extracted)) {
+        setUploadError("Couldn't read charges from this image. Try a clearer photo with better lighting, or upload the PDF version.")
+        setScreen("upload")
+        return
+      }
 
       // Step 2 + 3: Analyze (lookup + score merged)
       setStep(1, "active")
@@ -57,13 +70,13 @@ function App() {
       setScreen("results")
     } catch (e) {
       console.error(e)
-      alert("Error processing bill. Check that the backend is running.")
+      setUploadError("Error processing bill. Check that the backend is running.")
       setScreen("upload")
     }
   }
 
   if (screen === "upload") {
-    return <Upload onFile={handleFile} />
+    return <Upload onFile={handleFile} error={uploadError} />
   }
 
   if (screen === "processing") {
