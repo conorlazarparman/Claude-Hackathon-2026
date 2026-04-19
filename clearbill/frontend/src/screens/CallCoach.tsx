@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react"
-import { CoachingCard } from "../components/CoachingCard"
 import { TranscriptFeed } from "../components/TranscriptFeed"
 import { CoachSocket } from "../lib/websocket"
 import { DeepgramCapture } from "../lib/audio"
@@ -59,7 +58,6 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
       }
       setInterimText(null)
       setTranscript((t) => [...t, { speaker, text }])
-      setCoachingText("")
 
       if (speaker === "rep") {
         wsRef.current?.sendRepUtterance(text)
@@ -96,11 +94,10 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "1fr 1fr",
+      gridTemplateColumns: "280px 1fr 1fr",
       gap: "16px",
       height: "100vh",
       padding: "16px",
-      position: "relative",
     }}>
       {/* Left: evidence panel */}
       <div style={{
@@ -255,11 +252,71 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         </div>
       </div>
 
-      <CoachingCard
-        text={coachingText}
-        isStreaming={isCoachingStreaming}
-        onDismiss={() => setCoachingText("")}
-      />
+      {/* Right: AI Coach panel */}
+      <div style={{
+        background: "var(--bg-card)",
+        borderRadius: "12px",
+        border: "1px solid var(--border)",
+        padding: "20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px",
+        overflowY: "auto",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            AI Coach
+          </div>
+          {isCoachingStreaming && (
+            <span style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              background: "var(--purple)",
+              display: "inline-block",
+              animation: "blink 1.2s infinite",
+            }} />
+          )}
+        </div>
+
+        {coachingText ? (
+          <>
+            <div style={{
+              fontSize: "13px",
+              lineHeight: "1.6",
+              color: "var(--text-primary)",
+              whiteSpace: "pre-wrap",
+            }}>
+              {coachingText}
+              {isCoachingStreaming && (
+                <span style={{ animation: "blink 1s infinite", opacity: 0.6 }}>▌</span>
+              )}
+            </div>
+            {!isCoachingStreaming && (
+              <button
+                onClick={() => setCoachingText("")}
+                style={{
+                  alignSelf: "flex-start",
+                  marginTop: "4px",
+                  padding: "4px 10px",
+                  background: "transparent",
+                  color: "var(--text-tertiary)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "5px",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: "13px", color: "var(--text-tertiary)", fontStyle: "italic" }}>
+            Listening for billing tactics…
+          </div>
+        )}
+      </div>
     </div>
   )
 }
