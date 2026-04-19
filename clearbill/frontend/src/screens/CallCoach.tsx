@@ -92,6 +92,17 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
     setCallPhase("ended")
   }
 
+  const newCall = () => {
+    captureRef.current = null
+    wsRef.current = null
+    setTranscript([])
+    setInterimText(null)
+    setCoachingMessages([])
+    setIsCoachingStreaming(false)
+    setMicError(null)
+    setCallPhase("idle")
+  }
+
   useEffect(() => {
     return () => {
       captureRef.current?.stop()
@@ -255,13 +266,30 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
           )}
 
           {callPhase === "ended" && (
-            <div style={{
-              textAlign: "center",
-              fontSize: "13px",
-              color: "var(--text-secondary)",
-              padding: "12px",
-            }}>
-              Call ended
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{
+                textAlign: "center",
+                fontSize: "13px",
+                color: "var(--text-secondary)",
+                padding: "4px",
+              }}>
+                Call ended
+              </div>
+              <button
+                onClick={newCall}
+                style={{
+                  width: "100%",
+                  padding: "13px",
+                  background: "var(--green)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                }}
+              >
+                Start new call
+              </button>
             </div>
           )}
         </div>
