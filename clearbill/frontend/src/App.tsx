@@ -2,10 +2,9 @@ import { useState } from "react"
 import { Upload } from "./screens/Upload"
 import { Processing } from "./screens/Processing"
 import { Results } from "./screens/Results"
-import { CallCoach } from "./screens/CallCoach"
 import { extractBill, analyzeBill } from "./lib/api"
 
-type Screen = "upload" | "processing" | "results" | "coach"
+type Screen = "upload" | "processing" | "results"
 
 interface Step {
   label: string
@@ -84,16 +83,7 @@ function App() {
   }
 
   if (screen === "results" && auditData) {
-    return (
-      <Results
-        auditData={auditData}
-        onStartCoach={() => setScreen("coach")}
-      />
-    )
-  }
-
-  if (screen === "coach" && auditData) {
-    return <CallCoach auditResults={auditData} sessionId={sessionId} />
+    return <Results auditData={auditData} sessionId={sessionId} />
   }
 
   return null

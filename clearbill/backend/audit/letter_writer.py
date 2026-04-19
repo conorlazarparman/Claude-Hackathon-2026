@@ -1,9 +1,9 @@
-import anthropic
 import json
 import os
 from typing import AsyncGenerator
+from anthropic import AsyncAnthropic
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
 async def stream_dispute_letter(

@@ -104,7 +104,7 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
       display: "grid",
       gridTemplateColumns: "280px 1fr 1fr",
       gap: "16px",
-      height: "100vh",
+      height: "100%",
       padding: "16px",
       boxSizing: "border-box",
     }}>
