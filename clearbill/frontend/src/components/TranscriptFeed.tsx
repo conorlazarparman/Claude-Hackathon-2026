@@ -58,6 +58,7 @@ export function TranscriptFeed({ transcript, interim }: TranscriptFeedProps) {
     return (
       <div style={{
         flex: 1,
+        minHeight: 0,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -70,7 +71,7 @@ export function TranscriptFeed({ transcript, interim }: TranscriptFeedProps) {
   }
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
       {transcript.map((u, i) => (
         <Bubble key={i} speaker={u.speaker} text={u.text} />
       ))}

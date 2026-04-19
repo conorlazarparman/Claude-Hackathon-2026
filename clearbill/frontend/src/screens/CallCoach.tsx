@@ -13,7 +13,7 @@ interface CallCoachProps {
 export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
   const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string }>>([])
   const [interimText, setInterimText] = useState<{ speaker: string; text: string } | null>(null)
-  const [coachingText, setCoachingText] = useState("")
+  const [coachingMessages, setCoachingMessages] = useState<Array<{ text: string; streaming: boolean }>>([])
   const [isCoachingStreaming, setIsCoachingStreaming] = useState(false)
   const [callPhase, setCallPhase] = useState<"idle" | "active" | "ended">("idle")
   const [micError, setMicError] = useState<string | null>(null)
@@ -37,9 +37,17 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
     socket.onMessage = (data) => {
       if (data.type === "coaching_chunk") {
         setIsCoachingStreaming(true)
-        setCoachingText((t) => t + data.chunk)
+        setCoachingMessages((msgs) => {
+          if (msgs.length > 0 && msgs[0].streaming) {
+            return [{ ...msgs[0], text: msgs[0].text + data.chunk }, ...msgs.slice(1)]
+          }
+          return [{ text: data.chunk, streaming: true }, ...msgs]
+        })
       } else if (data.type === "coaching_done") {
         setIsCoachingStreaming(false)
+        setCoachingMessages((msgs) =>
+          msgs.length > 0 ? [{ ...msgs[0], streaming: false }, ...msgs.slice(1)] : msgs
+        )
       } else if (data.type === "transcript_update") {
         setTranscript((t) => [...t, { speaker: data.speaker, text: data.text }])
       }
@@ -98,6 +106,7 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
       gap: "16px",
       height: "100vh",
       padding: "16px",
+      boxSizing: "border-box",
     }}>
       {/* Left: evidence panel */}
       <div style={{
@@ -105,44 +114,47 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         borderRadius: "12px",
         border: "1px solid var(--border)",
         padding: "20px",
-        overflowY: "auto",
         display: "flex",
         flexDirection: "column",
         gap: "12px",
+        minHeight: 0,
+        overflow: "hidden",
       }}>
-        <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
           Your evidence
         </div>
-        <div>
+        <div style={{ flexShrink: 0 }}>
           <div style={{ fontSize: "32px", fontWeight: 600, color: "var(--red)", letterSpacing: "-1px" }}>
             ${totalSavings.toFixed(2)}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>potential overcharges</div>
         </div>
 
-        {flaggedItems.map((item: any, i: number) => (
-          <div key={i} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontSize: "13px", fontWeight: 500, marginBottom: "4px" }}>
-              {item.description}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
+          {flaggedItems.map((item: any, i: number) => (
+            <div key={i} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ fontSize: "13px", fontWeight: 500, marginBottom: "4px" }}>
+                {item.description}
+              </div>
+              {item.flags.map((flag: any, j: number) => (
+                <div key={j} style={{
+                  fontSize: "12px",
+                  color: flag.type === "CRITICAL" ? "var(--red)" : "var(--amber)",
+                }}>
+                  {flag.label} — save ${flag.delta?.toFixed(2)}
+                </div>
+              ))}
+              {item.flags[0]?.law && (
+                <div style={{ fontSize: "10px", color: "var(--text-tertiary)", marginTop: "2px" }}>
+                  {item.flags[0].law}
+                </div>
+              )}
             </div>
-            {item.flags.map((flag: any, j: number) => (
-              <div key={j} style={{
-                fontSize: "12px",
-                color: flag.type === "CRITICAL" ? "var(--red)" : "var(--amber)",
-              }}>
-                {flag.label} — save ${flag.delta?.toFixed(2)}
-              </div>
-            ))}
-            {item.flags[0]?.law && (
-              <div style={{ fontSize: "10px", color: "var(--text-tertiary)", marginTop: "2px" }}>
-                {item.flags[0].law}
-              </div>
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Right: transcript + controls */}
+      {/* Middle: transcript + controls */}
       <div style={{
         background: "var(--bg-card)",
         borderRadius: "12px",
@@ -151,15 +163,15 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         display: "flex",
         flexDirection: "column",
         gap: "12px",
+        minHeight: 0,
+        overflow: "hidden",
       }}>
-        {/* Header row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
             Live transcript
           </div>
           {callPhase === "active" && (
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              {/* Pulsing mic indicator */}
               <span style={{
                 width: "7px",
                 height: "7px",
@@ -173,7 +185,9 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
           )}
         </div>
 
-        <TranscriptFeed transcript={transcript} interim={interimText} />
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <TranscriptFeed transcript={transcript} interim={interimText} />
+        </div>
 
         {micError && (
           <div style={{
@@ -182,12 +196,13 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
             padding: "8px 10px",
             background: "rgba(224,82,82,0.08)",
             borderRadius: "6px",
+            flexShrink: 0,
           }}>
             {micError}
           </div>
         )}
 
-        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
           {callPhase === "idle" && (
             <button
               onClick={startCall}
@@ -261,9 +276,10 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         display: "flex",
         flexDirection: "column",
         gap: "12px",
-        overflowY: "auto",
+        minHeight: 0,
+        overflow: "hidden",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
             AI Coach
           </div>
@@ -279,43 +295,31 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
           )}
         </div>
 
-        {coachingText ? (
-          <>
-            <div style={{
-              fontSize: "13px",
-              lineHeight: "1.6",
-              color: "var(--text-primary)",
-              whiteSpace: "pre-wrap",
-            }}>
-              {coachingText}
-              {isCoachingStreaming && (
-                <span style={{ animation: "blink 1s infinite", opacity: 0.6 }}>▌</span>
-              )}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
+          {coachingMessages.length === 0 ? (
+            <div style={{ fontSize: "13px", color: "var(--text-tertiary)", fontStyle: "italic" }}>
+              Listening for billing tactics…
             </div>
-            {!isCoachingStreaming && (
-              <button
-                onClick={() => setCoachingText("")}
-                style={{
-                  alignSelf: "flex-start",
-                  marginTop: "4px",
-                  padding: "4px 10px",
-                  background: "transparent",
-                  color: "var(--text-tertiary)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "5px",
-                  fontSize: "11px",
-                  cursor: "pointer",
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </>
-        ) : (
-          <div style={{ fontSize: "13px", color: "var(--text-tertiary)", fontStyle: "italic" }}>
-            Listening for billing tactics…
-          </div>
-        )}
+          ) : (
+            coachingMessages.map((msg, i) => (
+              <div key={i} style={{
+                padding: "12px",
+                background: i === 0 ? "rgba(127,119,221,0.08)" : "var(--bg)",
+                borderRadius: "8px",
+                border: `1px solid ${i === 0 ? "var(--purple)" : "var(--border)"}`,
+                fontSize: "13px",
+                lineHeight: "1.6",
+                color: i === 0 ? "var(--text-primary)" : "var(--text-secondary)",
+                flexShrink: 0,
+              }}>
+                {msg.text}
+                {msg.streaming && (
+                  <span style={{ animation: "blink 1s infinite", opacity: 0.6, marginLeft: "1px" }}>▌</span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   )
