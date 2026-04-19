@@ -43,16 +43,74 @@ async def extract_bill(file_bytes: bytes, content_type: str) -> dict:
     media_type = media_type_map.get(content_type, "image/jpeg")
     is_pdf = media_type == "application/pdf"
 
-    content_block = {
-        "type": "document" if is_pdf else "image",
-        "source": {
-            "type": "base64",
-            "media_type": media_type,
-            "data": b64,
-        },
-    }
+    print(f"[extractor] content_type={content_type} media_type={media_type} is_pdf={is_pdf}")
+
     if is_pdf:
-        content_block["cache_control"] = {"type": "ephemeral"}
+        content_block = {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": "application/pdf",
+                "data": b64,
+            },
+            "cache_control": {"type": "ephemeral"},
+        }
+    else:
+        content_block = {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": b64,
+            },
+        }
+
+    if is_pdf:
+        extraction_prompt = """Extract every line item from this medical bill.
+Return ONLY valid JSON, no markdown fences, no other text:
+{
+  "patient_name": "...",
+  "hospital_name": "...",
+  "hospital_npi": "...",
+  "account_number": "...",
+  "service_date": "...",
+  "line_items": [
+    {
+      "id": "1",
+      "description": "exact text from bill",
+      "cpt_code_raw": "code if shown, else null",
+      "quantity": 1,
+      "billed_amount": 123.45,
+      "insurance_adjustment": 123.45,
+      "patient_owes": 123.45
+    }
+  ],
+  "total_billed": 123.45,
+  "total_patient_owes": 123.45
+}"""
+    else:
+        extraction_prompt = """You are looking at a phone photo of a medical bill. Extract every visible charge even if the image is slightly blurry or has glare. For each line item, infer the CPT code from the description if the code is not directly visible.
+Return ONLY valid JSON, no markdown fences, no other text. Do NOT use 0.00 as a placeholder — if a value is truly unreadable, use null:
+{
+  "patient_name": "...",
+  "hospital_name": "...",
+  "hospital_npi": "...",
+  "account_number": "...",
+  "service_date": "...",
+  "line_items": [
+    {
+      "id": "1",
+      "description": "exact text from bill",
+      "cpt_code_raw": "code if shown, else null",
+      "quantity": 1,
+      "billed_amount": 123.45,
+      "insurance_adjustment": 123.45,
+      "patient_owes": 123.45
+    }
+  ],
+  "total_billed": 123.45,
+  "total_patient_owes": 123.45
+}"""
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
@@ -71,28 +129,7 @@ async def extract_bill(file_bytes: bytes, content_type: str) -> dict:
                     content_block,
                     {
                         "type": "text",
-                        "text": """Extract every line item from this medical bill.
-Return ONLY valid JSON, no markdown fences, no other text:
-{
-  "patient_name": "...",
-  "hospital_name": "...",
-  "hospital_npi": "...",
-  "account_number": "...",
-  "service_date": "...",
-  "line_items": [
-    {
-      "id": "1",
-      "description": "exact text from bill",
-      "cpt_code_raw": "code if shown, else null",
-      "quantity": 1,
-      "billed_amount": 0.00,
-      "insurance_adjustment": 0.00,
-      "patient_owes": 0.00
-    }
-  ],
-  "total_billed": 0.00,
-  "total_patient_owes": 0.00
-}""",
+                        "text": extraction_prompt,
                     },
                 ],
             }
@@ -100,6 +137,7 @@ Return ONLY valid JSON, no markdown fences, no other text:
     )
 
     text = response.content[0].text.strip()
+    print(f"[extractor] raw Claude response: {text[:500]}")
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.startswith("json"):
