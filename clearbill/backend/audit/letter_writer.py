@@ -33,27 +33,10 @@ Requirements:
 
 Write the complete letter, ready to send."""
 
-    in_thinking = False
-    with client.messages.stream(
+    async with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=2000,
-        thinking={"type": "enabled", "budget_tokens": 5000},
         messages=[{"role": "user", "content": prompt}],
     ) as stream:
-        for event in stream:
-            if not hasattr(event, "type"):
-                continue
-
-            if event.type == "content_block_start":
-                block = event.content_block
-                in_thinking = block.type == "thinking"
-
-            elif event.type == "content_block_delta":
-                delta = event.delta
-                if in_thinking and hasattr(delta, "thinking"):
-                    yield {"type": "thinking", "text": delta.thinking}
-                elif not in_thinking and hasattr(delta, "text"):
-                    yield {"type": "text", "text": delta.text}
-
-            elif event.type == "content_block_stop":
-                in_thinking = False
+        async for text in stream.text_stream:
+            yield {"type": "text", "text": text}
