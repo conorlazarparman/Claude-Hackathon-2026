@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react"
 import { CoachingCard } from "../components/CoachingCard"
 import { TranscriptFeed } from "../components/TranscriptFeed"
 import { CoachSocket } from "../lib/websocket"
+import { DeepgramCapture } from "../lib/audio"
+
+const DEEPGRAM_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY as string
 
 interface CallCoachProps {
   auditResults: any
@@ -10,11 +13,13 @@ interface CallCoachProps {
 
 export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
   const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string }>>([])
+  const [interimText, setInterimText] = useState<{ speaker: string; text: string } | null>(null)
   const [coachingText, setCoachingText] = useState("")
   const [isCoachingStreaming, setIsCoachingStreaming] = useState(false)
   const [callPhase, setCallPhase] = useState<"idle" | "active" | "ended">("idle")
-  const [repInput, setRepInput] = useState("")
+  const [micError, setMicError] = useState<string | null>(null)
   const wsRef = useRef<CoachSocket | null>(null)
+  const captureRef = useRef<DeepgramCapture | null>(null)
 
   const flaggedItems = auditResults?.line_items?.filter((i: any) => i.is_flagged) || []
   const totalSavings = flaggedItems.reduce(
@@ -22,15 +27,14 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
     0
   )
 
-  const startCall = () => {
+  const startCall = async () => {
+    setMicError(null)
+
+    // Connect coach WebSocket first
     const socket = new CoachSocket(sessionId)
     wsRef.current = socket
 
-    socket.onOpen = () => {
-      socket.init(auditResults)
-      setCallPhase("active")
-    }
-
+    socket.onOpen = () => socket.init(auditResults)
     socket.onMessage = (data) => {
       if (data.type === "coaching_chunk") {
         setIsCoachingStreaming(true)
@@ -41,25 +45,52 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         setTranscript((t) => [...t, { speaker: data.speaker, text: data.text }])
       }
     }
+
+    // Start Deepgram audio capture
+    const capture = new DeepgramCapture(DEEPGRAM_KEY)
+    captureRef.current = capture
+
+    capture.onError = (msg) => setMicError(msg)
+
+    capture.onUtterance = ({ speaker, text, isFinal }) => {
+      if (!isFinal) {
+        setInterimText({ speaker, text })
+        return
+      }
+      setInterimText(null)
+      setTranscript((t) => [...t, { speaker, text }])
+      setCoachingText("")
+
+      if (speaker === "rep") {
+        wsRef.current?.sendRepUtterance(text)
+      } else {
+        wsRef.current?.sendPatientUtterance(text)
+      }
+    }
+
+    try {
+      await capture.start()
+      setCallPhase("active")
+    } catch (e: any) {
+      setMicError(e.message ?? "Microphone access denied")
+    }
   }
 
-  const sendRepLine = () => {
-    if (!repInput.trim() || !wsRef.current) return
-    const text = repInput.trim()
-    setTranscript((t) => [...t, { speaker: "rep", text }])
-    wsRef.current.sendRepUtterance(text)
-    setRepInput("")
-    setCoachingText("")
-  }
+  const flipSpeakers = () => captureRef.current?.flipSpeakers()
 
   const endCall = () => {
+    captureRef.current?.stop()
     wsRef.current?.end()
     wsRef.current?.close()
+    setInterimText(null)
     setCallPhase("ended")
   }
 
   useEffect(() => {
-    return () => wsRef.current?.close()
+    return () => {
+      captureRef.current?.stop()
+      wsRef.current?.close()
+    }
   }, [])
 
   return (
@@ -93,10 +124,7 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         </div>
 
         {flaggedItems.map((item: any, i: number) => (
-          <div key={i} style={{
-            padding: "10px 0",
-            borderBottom: "1px solid var(--border)",
-          }}>
+          <div key={i} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ fontSize: "13px", fontWeight: 500, marginBottom: "4px" }}>
               {item.description}
             </div>
@@ -117,7 +145,7 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         ))}
       </div>
 
-      {/* Right: transcript + input */}
+      {/* Right: transcript + controls */}
       <div style={{
         background: "var(--bg-card)",
         borderRadius: "12px",
@@ -127,11 +155,40 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
         flexDirection: "column",
         gap: "12px",
       }}>
-        <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Live transcript
+        {/* Header row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Live transcript
+          </div>
+          {callPhase === "active" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              {/* Pulsing mic indicator */}
+              <span style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                background: "var(--red)",
+                display: "inline-block",
+                animation: "blink 1.2s infinite",
+              }} />
+              <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Listening</span>
+            </div>
+          )}
         </div>
 
-        <TranscriptFeed transcript={transcript} />
+        <TranscriptFeed transcript={transcript} interim={interimText} />
+
+        {micError && (
+          <div style={{
+            fontSize: "12px",
+            color: "var(--red)",
+            padding: "8px 10px",
+            background: "rgba(224,82,82,0.08)",
+            borderRadius: "6px",
+          }}>
+            {micError}
+          </div>
+        )}
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
           {callPhase === "idle" && (
@@ -148,45 +205,26 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
                 fontWeight: 500,
               }}
             >
-              Start call recording
+              Start listening
             </button>
           )}
 
           {callPhase === "active" && (
             <>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <input
-                  type="text"
-                  value={repInput}
-                  onChange={(e) => setRepInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendRepLine()}
-                  placeholder="Type what the rep just said..."
-                  style={{
-                    flex: 1,
-                    padding: "10px 12px",
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "7px",
-                    color: "var(--text)",
-                    fontSize: "13px",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  onClick={sendRepLine}
-                  style={{
-                    padding: "10px 16px",
-                    background: "var(--purple)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "7px",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                  }}
-                >
-                  Send
-                </button>
-              </div>
+              <button
+                onClick={flipSpeakers}
+                style={{
+                  width: "100%",
+                  padding: "9px",
+                  background: "transparent",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "7px",
+                  fontSize: "12px",
+                }}
+              >
+                Flip speakers (if patient/rep are swapped)
+              </button>
               <button
                 onClick={endCall}
                 style={{
@@ -211,7 +249,7 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
               color: "var(--text-secondary)",
               padding: "12px",
             }}>
-              Call ended — dispute summary saved
+              Call ended
             </div>
           )}
         </div>
