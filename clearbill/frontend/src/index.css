@@ -1,0 +1,52 @@
+:root {
+  --bg: #0f0f11;
+  --bg-card: #18181c;
+  --border: #2a2a30;
+  --text: #e8e8ec;
+  --text-secondary: #888893;
+  --text-tertiary: #55555e;
+  --red: #e05252;
+  --red-dim: #a32d2d;
+  --amber: #d97706;
+  --green: #639922;
+  --purple: #7f77dd;
+  --purple-dim: #534ab7;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+@keyframes slideUp {
+  from { transform: translateX(-50%) translateY(16px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);   opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
