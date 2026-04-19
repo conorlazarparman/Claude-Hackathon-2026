@@ -1,16 +1,17 @@
 :root {
-  --bg: #0f0f11;
-  --bg-card: #18181c;
-  --border: #2a2a30;
-  --text: #e8e8ec;
-  --text-secondary: #888893;
-  --text-tertiary: #55555e;
-  --red: #e05252;
-  --red-dim: #a32d2d;
-  --amber: #d97706;
-  --green: #639922;
-  --purple: #7f77dd;
-  --purple-dim: #534ab7;
+  --bg: #EAE2D0;
+  --bg-card: #F4EFE3;
+  --border: #C2AF93;
+  --text: #231F16;
+  --text-primary: #231F16;
+  --text-secondary: #6A5B45;
+  --text-tertiary: #9C8B74;
+  --red: #7B1D2B;
+  --red-dim: #A84558;
+  --amber: #7A590A;
+  --green: #3A5C35;
+  --purple: #2B4F7A;
+  --purple-dim: #D0DCF0;
 }
 
 * {
@@ -20,8 +21,8 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 14px;
+  font-family: "EB Garamond", Georgia, "Times New Roman", serif;
+  font-size: 15px;
   color: var(--text);
   background: var(--bg);
   min-height: 100vh;

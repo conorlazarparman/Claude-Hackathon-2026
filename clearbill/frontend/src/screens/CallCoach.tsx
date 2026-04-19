@@ -194,7 +194,7 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
             fontSize: "12px",
             color: "var(--red)",
             padding: "8px 10px",
-            background: "rgba(224,82,82,0.08)",
+            background: "rgba(123,29,43,0.07)",
             borderRadius: "6px",
             flexShrink: 0,
           }}>
@@ -304,7 +304,7 @@ export function CallCoach({ auditResults, sessionId }: CallCoachProps) {
             coachingMessages.map((msg, i) => (
               <div key={i} style={{
                 padding: "12px",
-                background: i === 0 ? "rgba(127,119,221,0.08)" : "var(--bg)",
+                background: i === 0 ? "rgba(43,79,122,0.07)" : "var(--bg)",
                 borderRadius: "8px",
                 border: `1px solid ${i === 0 ? "var(--purple)" : "var(--border)"}`,
                 fontSize: "13px",
