@@ -1,110 +1,95 @@
 # ClearBill
-### AI-powered medical bill auditor and live call coach
 
-> "We audited your bill. Now we're staying on the call with you."
+ClearBill is an AI-powered medical billing audit tool that helps patients identify overcharges in hospital bills and dispute them. Upload a bill, see exactly what was overbilled against Medicare rates, get a formal dispute letter, and receive real-time coaching during your call with the billing department.
 
-Built at the Anthropic Claude Hackathon 2026 — Theme: *Machines of Loving Grace*
+This was built by Daniel Kim and Conor Parman for the 2026 SoCal Claude Hackathon, a 1-day hackathon with 100 students from UCLA, USC, and CalTech. 
 
 ---
 
 ## What it does
 
-Medical billing in the United States is deliberately opaque. 80% of bills contain errors. Most people — especially those least able to afford it — never fight back because they don't know how.
+**1. Bill extraction** — Upload a photo or PDF of your medical bill. Claude Vision reads every line item, including CPT codes, descriptions, and amounts.
 
-ClearBill does two things:
+**2. Overcharge detection** — Each charge is benchmarked against the CMS Medicare Physician Fee Schedule (7,800+ CPT codes). Items billed 2× or more over the standard rate are flagged with estimated savings.
 
-**1. Audits your bill**
-Upload a photo or PDF of any medical bill. Claude Vision extracts every line item, ML matches them to canonical CPT codes using semantic embeddings, and each charge is scored against three benchmarks: the hospital's own legally-published chargemaster rate, Medicare reference rates, and regional averages. Potential overcharges are flagged with a visible reasoning chain and a ready-to-send dispute letter.
+**3. Dispute letter** — A formal dispute letter is generated citing your specific overcharges and the applicable CMS regulation.
 
-**2. Coaches you through the call**
-When you call the hospital billing department to dispute, ClearBill listens in real time, detects the billing rep's tactics, and silently feeds you exactly what to say next — grounded in your specific audit findings, citing the exact statute.
+**4. Live call coach** — During a call with your hospital's billing department, the app transcribes the conversation in real time, detects pressure tactics (deflection, urgency, authority claims), and suggests responses.
 
 ---
 
-## Demo
+## Stack
 
-1. Upload a medical bill (photo or PDF)
-2. Watch the audit pipeline run live — extraction, CPT matching, anomaly scoring
-3. See flagged overcharges with dollar amounts and legal citations
-4. Copy the generated dispute letter
-5. Switch to Call Coach mode — type what the rep says, get coached on what to say back
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React + TypeScript + Vite |
-| Backend | Python + FastAPI |
-| Bill extraction | Claude Vision (Sonnet 4.6) |
-| CPT code matching | sentence-transformers + FAISS |
-| Anomaly scoring | Statistical comparison vs CMS Medicare rates |
-| Dispute letter | Claude Sonnet + Extended Thinking |
-| Tactic detection | Claude Haiku (~150ms latency) |
-| Call coaching | Claude Sonnet + stateful WebSocket context |
-| Real-time comms | WebSockets |
-| Pricing data | CMS Medicare Physician Fee Schedule |
+| Layer | Tech |
+|-------|------|
+| Frontend | React 19, TypeScript, Vite |
+| Backend | FastAPI, Python |
+| AI | Claude Sonnet 4.6 (vision, letter, coaching), Claude Haiku 4.5 (tactic detection) |
+| Transcription | Deepgram WebSocket API |
+| Rate data | CMS Medicare Physician Fee Schedule 2024 |
 
 ---
 
-## Claude API Features Used
+## Project structure
 
-- **Claude Vision** — extracts structured data from any bill format in a single API call
-- **Extended Thinking** — surfaces the full reasoning chain behind every flag, making the logic transparent and auditable
-- **Streaming** — all Claude responses stream live to the UI, making the pipeline visible during the demo
-- **Multi-model routing** — Haiku for real-time tactic detection, Sonnet for deep reasoning
-- **Stateful context management** — the call coach holds the full audit findings, call history, tactics used, and leverage cards remaining across every WebSocket message
-
----
-
-## How the ML works
-
-**CPT Code Matching**
-Medical bills use inconsistent, obfuscated language. "Emergency Department Visit — High Complexity" and "ED E&M Level 5" are the same procedure billed differently at every hospital. We embed each line item description using `all-MiniLM-L6-v2` and run cosine similarity search against a FAISS index of pre-embedded CMS procedure descriptions to find the canonical CPT code. String matching fails here — semantic embedding succeeds.
-
-**Anomaly Scoring**
-For each matched CPT code, three comparisons are made:
-- **vs. hospital's own chargemaster** — billing above published rate is illegal under 45 CFR §180.50
-- **vs. Medicare reference rate** — flags charges above 2× the federal benchmark
-- **vs. regional average** — flags charges above the 90th percentile for the zip code
-
-**Tactic Detection**
-During live calls, every rep utterance is classified against a taxonomy of known billing department tactics (DEFLECT, AUTHORITY, CONFUSION, URGENCY, SYMPATHY_TRAP, DENIAL, STALL) using Claude Haiku. A score threshold gates the coaching pipeline — below 6/10, Claude stays silent.
+```
+clearbill/
+├── backend/
+│   ├── main.py                  # FastAPI app — audit + coaching routes
+│   ├── requirements.txt
+│   ├── audit/
+│   │   ├── extractor.py         # Claude Vision bill parsing
+│   │   ├── cpt_lookup.py        # CPT code → Medicare rate lookup
+│   │   ├── anomaly_scorer.py    # Flag items >2× Medicare rate
+│   │   ├── letter_writer.py     # Dispute letter streaming
+│   │   └── data/
+│   │       └── cms_rates.csv    # 7,835 CPT codes with facility rates
+│   └── coach/
+│       ├── call_state.py        # WebSocket session state
+│       ├── tactic_detector.py   # Haiku: classify billing rep tactics
+│       └── response_generator.py # Sonnet: coaching suggestions
+└── frontend/
+    └── src/
+        ├── App.tsx              # Screen orchestrator
+        ├── screens/
+        │   ├── Upload.tsx       # File upload (drag-and-drop, multi-file)
+        │   ├── Processing.tsx   # Step progress display
+        │   ├── Results.tsx      # Flagged items + dispute letter tabs
+        │   └── CallCoach.tsx    # Live coaching interface
+        └── lib/
+            ├── api.ts           # HTTP API calls + image compression
+            ├── websocket.ts     # WebSocket client
+            └── audio.ts        # Deepgram audio capture + diarization
+```
 
 ---
 
 ## Setup
 
 ### Prerequisites
-- Python 3.11+
+
+- Python 3.8+
 - Node.js 18+
-- Anthropic API key
+- [Anthropic API key](https://console.anthropic.com)
+- [Deepgram API key](https://console.deepgram.com) (required for call coach)
 
 ### Backend
 
 ```bash
 cd clearbill/backend
-python3 -m venv venv
-source venv/bin/activate
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Create `.env`:
+Create `clearbill/backend/.env`:
 ```
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-Build the CPT index (run once):
-```bash
-cd clearbill
-python scripts/build_hardcoded_index.py
+ANTHROPIC_API_KEY=your_key_here
 ```
 
 Start the server:
 ```bash
-cd backend
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8000
 ```
 
 ### Frontend
@@ -112,66 +97,44 @@ uvicorn main:app --reload
 ```bash
 cd clearbill/frontend
 npm install
+```
+
+Create `clearbill/frontend/.env`:
+```
+VITE_DEEPGRAM_API_KEY=your_key_here
+```
+
+Start the dev server:
+```bash
 npm run dev
 ```
 
-App runs at `http://localhost:5173`, API at `http://localhost:8000`.
+Open [http://localhost:5173](http://localhost:5173).
 
 ---
 
-## Project Structure
+## API endpoints
 
-```
-clearbill/
-├── backend/
-│   ├── main.py                    # FastAPI app, all routes + WebSocket
-│   ├── audit/
-│   │   ├── extractor.py           # Claude Vision → structured JSON
-│   │   ├── cpt_matcher.py         # FAISS semantic search
-│   │   ├── anomaly_scorer.py      # 3-benchmark scoring
-│   │   └── letter_writer.py       # Dispute letter with extended thinking
-│   └── coach/
-│       ├── tactic_detector.py     # Haiku tactic classifier
-│       ├── response_generator.py  # Sonnet coaching response
-│       └── call_state.py          # Stateful call context manager
-├── frontend/
-│   └── src/
-│       ├── screens/
-│       │   ├── Upload.tsx
-│       │   ├── Results.tsx        # Audit dashboard
-│       │   └── CallCoach.tsx      # Live call coaching UI
-│       └── components/
-│           ├── CoachingCard.tsx   # Real-time coaching overlay
-│           └── TranscriptFeed.tsx
-└── scripts/
-    └── build_hardcoded_index.py   # Builds FAISS CPT index
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/audit/extract` | Upload bill image or PDF → extract line items |
+| `POST` | `/api/audit/analyze` | Enrich line items with CPT codes + flag overcharges |
+| `POST` | `/api/audit/letter` | Stream a formal dispute letter (SSE) |
+| `WS` | `/ws/coach/{session_id}` | Real-time call coaching via WebSocket |
 
 ---
 
-## Ethical Considerations
+## How the audit works
 
-- **Patient autonomy preserved** — ClearBill never takes action on the patient's behalf. It surfaces information and drafts language. The patient decides whether to dispute, what to send, and when to escalate.
-- **Transparency over black-box verdicts** — every flag includes the full reasoning chain from extended thinking. Patients can disagree with Claude's reasoning. The model is an advisor, not an authority.
-- **Epistemic honesty** — every finding is framed as a potential anomaly, not confirmed fraud. The dispute letter includes a disclaimer recommending professional legal advice.
-- **Grounded in real law** — every counter-argument cites specific federal statutes (45 CFR §180.50, the No Surprises Act) and the patient's actual bill. Nothing is fabricated.
-
----
-
-## The Problem We're Solving
-
-- 80M Americans receive a medical bill annually
-- 80% of bills contain errors
-- $100B+ in annual billing errors, most unpaid
-- Hospital billing departments run the same playbook every day — patients never have
-- 44M Americans living below the poverty line have no access to patient advocates or attorneys
-
-ClearBill gives anyone the same fighting chance.
+1. Claude Vision reads the bill and returns structured JSON (patient info, line items, amounts).
+2. Each line item's CPT code is matched against `cms_rates.csv` — the 2024 CMS Medicare Physician Fee Schedule.
+3. Items billed more than 2× the Medicare facility rate are flagged. Items over 5× are marked high severity.
+4. The dispute letter cites the CMS rate for each flagged item and references the Medicare Physician Fee Schedule by name.
 
 ---
 
-## Team
+## Notes
 
-Built at the Anthropic Claude Hackathon 2026
-- Conor Lazar-Parman
-- Daniel Kim
+- The CMS rates dataset (`backend/audit/data/cms_rates.csv`) was generated from the CMS 2024 Medicare Physician Fee Schedule using `scripts/download_cms.py`. It does not need to be regenerated.
+- Multi-page bills can be uploaded as separate photos — the frontend sends each image to the backend in parallel and merges the results.
+- Images over 4 MB are compressed to 1800px wide at 80% JPEG quality before upload.
